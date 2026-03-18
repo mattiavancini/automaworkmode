@@ -3,7 +3,7 @@
  * Plugin Name: Automa Work Mode
  * Plugin URI:  https://automa.biz
  * Description: Disattiva temporaneamente i plugin selezionati piu pesanti per alleggerire il backend WordPress durante le attivita di copywriting e gestione contenuti.
- * Version:     0.1.1
+ * Version:     0.1.2
  * Author:      Automa
  * License:     GPL-2.0-or-later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -14,7 +14,7 @@ if (! defined('ABSPATH')) {
 	exit;
 }
 
-define('AUTOMA_WORK_MODE_VERSION', '0.1.1');
+define('AUTOMA_WORK_MODE_VERSION', '0.1.2');
 define('AUTOMA_WORK_MODE_FILE', __FILE__);
 define('AUTOMA_WORK_MODE_DIR', plugin_dir_path(__FILE__));
 define('AUTOMA_WORK_MODE_URL', plugin_dir_url(__FILE__));

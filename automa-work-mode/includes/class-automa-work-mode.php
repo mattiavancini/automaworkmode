@@ -46,15 +46,16 @@ class Automa_Work_Mode {
 	public static function activate(): void {
 		$self = new self();
 
-		if (! get_option(self::SETTINGS_OPTION)) {
+		if (get_option(self::SETTINGS_OPTION, null) === null) {
 			add_option(self::SETTINGS_OPTION, $self->get_default_settings());
 		}
 
-		if (! get_option(self::LOG_OPTION)) {
+		if (get_option(self::LOG_OPTION, null) === null) {
 			add_option(self::LOG_OPTION, array());
 		}
 
 		$self->grant_capabilities();
+		$self->remove_legacy_capabilities();
 	}
 
 	/**
@@ -70,12 +71,10 @@ class Automa_Work_Mode {
 	 * Add Work Mode capability to supported roles.
 	 */
 	public function grant_capabilities(): void {
-		foreach (array('administrator', 'editor') as $role_name) {
-			$role = get_role($role_name);
+		$role = get_role('administrator');
 
-			if ($role && ! $role->has_cap(self::CAPABILITY)) {
-				$role->add_cap(self::CAPABILITY);
-			}
+		if ($role && ! $role->has_cap(self::CAPABILITY)) {
+			$role->add_cap(self::CAPABILITY);
 		}
 	}
 
@@ -84,9 +83,9 @@ class Automa_Work_Mode {
 	 */
 	public function get_default_settings(): array {
 		return array(
-			'default_minutes' => 120,
-			'auto_activate_on_login' => false,
-			'allowed_roles' => array('administrator', 'editor'),
+			'default_minutes' => self::AUTO_LOGIN_MINUTES,
+			'auto_activate_on_login' => true,
+			'allowed_roles' => array('administrator'),
 			'selected_plugins' => array(
 				'broken-link-checker/broken-link-checker.php',
 				'wp-compress-image-optimizer/wp-compress.php',
@@ -187,7 +186,7 @@ class Automa_Work_Mode {
 		$this->update_settings(array(
 			'default_minutes' => $minutes,
 			'auto_activate_on_login' => $current_settings['auto_activate_on_login'] ?? false,
-			'allowed_roles' => $current_settings['allowed_roles'] ?? array('administrator', 'editor'),
+			'allowed_roles' => $current_settings['allowed_roles'] ?? array('administrator'),
 			'selected_plugins' => $current_settings['selected_plugins'] ?? array(),
 		));
 
@@ -377,21 +376,12 @@ class Automa_Work_Mode {
 	 * Return editable roles for the admin settings UI.
 	 */
 	public function get_available_roles(): array {
-		if (! function_exists('get_editable_roles')) {
-			require_once ABSPATH . 'wp-admin/includes/user.php';
-		}
-
-		$roles = get_editable_roles();
-		$options = array();
-
-		foreach ($roles as $role_key => $role) {
-			$options[] = array(
-				'key' => $role_key,
-				'label' => translate_user_role($role['name'] ?? $role_key),
-			);
-		}
-
-		return $options;
+		return array(
+			array(
+				'key' => 'administrator',
+				'label' => translate_user_role(__('Administrator')),
+			),
+		);
 	}
 
 	/**
@@ -559,6 +549,19 @@ class Automa_Work_Mode {
 	}
 
 	/**
+	 * Remove legacy capability grants from roles that should no longer operate the plugin.
+	 */
+	private function remove_legacy_capabilities(): void {
+		foreach (array('editor') as $role_name) {
+			$role = get_role($role_name);
+
+			if ($role && $role->has_cap(self::CAPABILITY)) {
+				$role->remove_cap(self::CAPABILITY);
+			}
+		}
+	}
+
+	/**
 	 * Detect whether the login flow is redirecting to the WordPress backend.
 	 */
 	private function is_backend_login_request(): bool {
@@ -715,10 +718,10 @@ class Automa_Work_Mode {
 		$roles = array_values(array_intersect($roles, $available_roles));
 
 		if (empty($roles)) {
-			return array('administrator', 'editor');
+			return array('administrator');
 		}
 
-		return array_values(array_unique($roles));
+		return array_values(array_intersect(array_unique($roles), array('administrator')));
 	}
 
 	/**

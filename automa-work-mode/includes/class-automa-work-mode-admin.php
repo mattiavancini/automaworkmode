@@ -319,7 +319,7 @@ class Automa_Work_Mode_Admin {
 	private function render_activate_form(array $settings, array $selected_plugins, string $button_label, bool $with_plugin_hint = false, array $inventory = array(), bool $allow_save = false, array $available_roles = array()): void {
 		$default_minutes = (int) ($settings['default_minutes'] ?? 120);
 		$auto_activate_on_login = ! empty($settings['auto_activate_on_login']);
-		$allowed_roles = $settings['allowed_roles'] ?? array('administrator', 'editor');
+		$allowed_roles = $settings['allowed_roles'] ?? array('administrator');
 		?>
 		<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="automa-work-mode__form" id="automa-work-mode-activate-form">
 			<input type="hidden" name="action" value="automa_work_mode_activate" />
