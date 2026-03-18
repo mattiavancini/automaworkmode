@@ -12,6 +12,7 @@ La versione `0.1.1` include questi comportamenti reali:
 
 - timer espresso in minuti
 - selezione manuale dei plugin da disattivare
+- attivazione automatica opzionale al login backend
 - plugin `protected` mostrati ma non selezionabili
 - pagina opzioni con stato Work Mode e inventario plugin
 - widget in Bacheca con azioni rapide
@@ -48,6 +49,16 @@ Dettagli:
 
 Il valore scelto viene salvato come impostazione del plugin e usato per calcolare il timestamp finale della sessione.
 
+### Timer login automatico
+
+Se l'opzione di auto-attivazione al login e abilitata, la sessione avviata automaticamente usa sempre un timer dedicato di `5` minuti.
+
+Questo timer:
+
+- vale solo per l'attivazione automatica via login
+- non riavvia una sessione gia attiva
+- non sostituisce il timer manuale configurato nella pagina impostazioni
+
 ## Selezione manuale dei plugin
 
 La tabella plugin nella pagina opzioni include una colonna di selezione.
@@ -74,6 +85,8 @@ La pagina `Tools > Automa Work Mode` mostra:
 - ora di fine prevista
 - tempo residuo
 - input minuti
+- checkbox `Attiva automaticamente la Modalita Operativa al login`
+- selezione dei ruoli ammessi per l'attivazione automatica
 - tabella plugin installati
 - checkbox di selezione manuale
 - stato attivo/inattivo di ogni plugin
@@ -185,6 +198,27 @@ Poi:
 - pianifica la riattivazione automatica
 - mostra il notice persistente con countdown
 
+### Attivazione automatica al login
+
+La feature e opzionale e disattivabile.
+
+Regole:
+
+- usa l'hook WordPress `wp_login`
+- procede solo quando il login sta portando davvero al backend WordPress
+- non fa nulla se la Work Mode e gia attiva
+- non fa nulla se non ci sono plugin selezionati manualmente
+- non fa nulla se l'utente non ha un ruolo ammesso
+- se tutte le condizioni sono valide, attiva la Work Mode usando:
+  - i plugin selezionati manualmente
+  - un timer fisso di `5` minuti
+
+Logging:
+
+- l'attivazione automatica riuscita viene salvata nel log interno
+- i casi di skip vengono loggati con una reason dedicata (`non_backend_login`, `already_active`, `no_selected_plugins`, `role_not_allowed`, `activation_failed`)
+- il log include `user_id` e `username`
+
 ### Stop manuale o scadenza
 
 Quando la modalita viene fermata manualmente o arriva a scadenza:
@@ -194,6 +228,7 @@ Quando la modalita viene fermata manualmente o arriva a scadenza:
 - pulisce lo stato attivo della Work Mode
 - aggiorna l'interfaccia
 - esegue un cache flush prudente dove supportato
+- se un plugin non puo essere ripristinato automaticamente, registra il problema nel log e segnala che serve una riattivazione manuale
 
 ### Fallback di sicurezza
 
@@ -253,9 +288,11 @@ Il link apre direttamente la pagina opzioni del plugin.
 6. Verificare input minuti con default `120`.
 7. Verificare che i plugin `protected` abbiano checkbox `disabled`.
 8. Selezionare manualmente uno o piu plugin non protetti.
-9. Salvare la selezione.
-10. Avviare la modalita operativa.
-11. Verificare:
+9. Facoltativo: attivare `Attiva automaticamente la Modalita Operativa al login`.
+10. Facoltativo: selezionare i ruoli ammessi desiderati, ad esempio `administrator` e `editor`.
+11. Salvare la selezione.
+12. Avviare la modalita operativa.
+13. Verificare:
    - stato `ACTIVE`
    - ora di fine prevista
    - tempo residuo
@@ -264,9 +301,16 @@ Il link apre direttamente la pagina opzioni del plugin.
    - bordo notice `#ED128C`
    - lista verticale dei plugin spenti
    - disattivazione dei soli plugin selezionati e attivi
-12. Usare `Riattiva ora`.
-13. Ripetere lasciando scadere il timer.
-14. Verificare il fallback aprendo una pagina admin dopo la scadenza.
+14. Usare `Riattiva ora`.
+15. Ripetere lasciando scadere il timer.
+16. Verificare il fallback aprendo una pagina admin dopo la scadenza.
+17. Con Work Mode inattiva, fare logout e login nel backend con un utente avente un ruolo ammesso.
+18. Verificare:
+   - attivazione automatica della Work Mode
+   - nessuna auto-attivazione su login non backend
+   - timer sessione impostato a `5` minuti
+   - nessun reset del timer se una sessione era gia attiva
+   - presenza nel log interno di `user_id`, `username` e reason dedicate per gli skip
 
 ## Rischi e limiti attuali
 
@@ -284,4 +328,3 @@ Il link apre direttamente la pagina opzioni del plugin.
 - reportistica avanzata
 
 Questa versione `0.1.1` e un MVP operativo, leggibile e testabile subito.
-

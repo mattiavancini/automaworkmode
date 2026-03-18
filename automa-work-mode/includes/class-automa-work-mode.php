@@ -14,6 +14,7 @@ class Automa_Work_Mode {
 	const RESTORE_HOOK = 'automa_work_mode_restore_event';
 	const CAPABILITY = 'automa_work_mode';
 	const MAX_LOG_ENTRIES = 100;
+	const AUTO_LOGIN_MINUTES = 5;
 
 	/**
 	 * Admin handler.
@@ -30,6 +31,7 @@ class Automa_Work_Mode {
 
 		add_action('admin_init', array($this, 'maybe_restore_expired_mode'));
 		add_action(self::RESTORE_HOOK, array($this, 'restore_work_mode_from_cron'));
+		add_action('wp_login', array($this, 'maybe_activate_on_login'), 10, 2);
 		add_action('admin_menu', array($this->admin, 'register_menu'));
 		add_action('wp_dashboard_setup', array($this->admin, 'register_dashboard_widget'));
 		add_action('admin_post_automa_work_mode_activate', array($this->admin, 'handle_activate_request'));
@@ -83,6 +85,8 @@ class Automa_Work_Mode {
 	public function get_default_settings(): array {
 		return array(
 			'default_minutes' => 120,
+			'auto_activate_on_login' => false,
+			'allowed_roles' => array('administrator', 'editor'),
 			'selected_plugins' => array(
 				'broken-link-checker/broken-link-checker.php',
 				'wp-compress-image-optimizer/wp-compress.php',
@@ -106,6 +110,8 @@ class Automa_Work_Mode {
 	public function update_settings(array $raw_settings): array {
 		$sanitized = array(
 			'default_minutes' => $this->sanitize_minutes($raw_settings['default_minutes'] ?? 120),
+			'auto_activate_on_login' => ! empty($raw_settings['auto_activate_on_login']),
+			'allowed_roles' => $this->sanitize_roles($raw_settings['allowed_roles'] ?? array()),
 			'selected_plugins' => $this->sanitize_selected_plugins($raw_settings['selected_plugins'] ?? array()),
 		);
 
@@ -180,6 +186,8 @@ class Automa_Work_Mode {
 		$current_settings = $this->get_settings();
 		$this->update_settings(array(
 			'default_minutes' => $minutes,
+			'auto_activate_on_login' => $current_settings['auto_activate_on_login'] ?? false,
+			'allowed_roles' => $current_settings['allowed_roles'] ?? array('administrator', 'editor'),
 			'selected_plugins' => $current_settings['selected_plugins'] ?? array(),
 		));
 
@@ -249,14 +257,18 @@ class Automa_Work_Mode {
 
 		$current_active_plugins = get_option('active_plugins', array());
 		$plugins_to_restore = array_values(array_intersect($state['disabled_plugins'] ?? array(), $state['active_plugins'] ?? array()));
-		$plugins_to_restore = array_filter($plugins_to_restore, static function ($plugin_file) {
-			return file_exists(WP_PLUGIN_DIR . '/' . $plugin_file);
-		});
-
 		$restored_plugins = array();
+		$failed_plugins = array();
+		$missing_plugins = array();
 
 		foreach ($plugins_to_restore as $plugin_file) {
+			if (! file_exists(WP_PLUGIN_DIR . '/' . $plugin_file)) {
+				$missing_plugins[] = $plugin_file;
+				continue;
+			}
+
 			if (in_array($plugin_file, $current_active_plugins, true)) {
+				$restored_plugins[] = $plugin_file;
 				continue;
 			}
 
@@ -264,16 +276,38 @@ class Automa_Work_Mode {
 
 			if (! is_wp_error($result)) {
 				$restored_plugins[] = $plugin_file;
+				continue;
 			}
+
+			$failed_plugins[] = array(
+				'plugin_file' => $plugin_file,
+				'message' => $result->get_error_message(),
+			);
 		}
 
 		delete_option(self::STATE_OPTION);
 		$this->clear_restore_schedule();
 		$this->flush_cache_layers();
-		$this->log_event('restored', array(
+		$log_context = array(
 			'source' => $source,
 			'restored_plugins' => $restored_plugins,
-		));
+			'missing_plugins' => $missing_plugins,
+			'failed_plugins' => $failed_plugins,
+		);
+
+		if (! empty($missing_plugins) || ! empty($failed_plugins)) {
+			$this->log_event('restore_incomplete', $log_context);
+
+			return array(
+				'success' => false,
+				'message' => __('Work Mode ended, but some plugins could not be restored automatically. Review the log and reactivate them manually if needed.', 'automa-work-mode'),
+				'restored_plugins' => $restored_plugins,
+				'missing_plugins' => $missing_plugins,
+				'failed_plugins' => $failed_plugins,
+			);
+		}
+
+		$this->log_event('restored', $log_context);
 
 		return array(
 			'success' => true,
@@ -328,6 +362,36 @@ class Automa_Work_Mode {
 		$settings = $this->get_settings();
 
 		return $this->sanitize_selected_plugins($settings['selected_plugins'] ?? array());
+	}
+
+	/**
+	 * Return the currently allowed roles for automatic login activation.
+	 */
+	public function get_allowed_roles(): array {
+		$settings = $this->get_settings();
+
+		return $this->sanitize_roles($settings['allowed_roles'] ?? array());
+	}
+
+	/**
+	 * Return editable roles for the admin settings UI.
+	 */
+	public function get_available_roles(): array {
+		if (! function_exists('get_editable_roles')) {
+			require_once ABSPATH . 'wp-admin/includes/user.php';
+		}
+
+		$roles = get_editable_roles();
+		$options = array();
+
+		foreach ($roles as $role_key => $role) {
+			$options[] = array(
+				'key' => $role_key,
+				'label' => translate_user_role($role['name'] ?? $role_key),
+			);
+		}
+
+		return $options;
 	}
 
 	/**
@@ -388,6 +452,94 @@ class Automa_Work_Mode {
 	}
 
 	/**
+	 * Maybe activate Work Mode automatically after a backend login.
+	 */
+	public function maybe_activate_on_login(string $user_login, $user): void {
+		if (! is_a($user, 'WP_User')) {
+			return;
+		}
+
+		$settings = $this->get_settings();
+
+		if (empty($settings['auto_activate_on_login'])) {
+			return;
+		}
+
+		if (! $this->is_backend_login_request()) {
+			$this->log_event('auto_activation_skipped', array(
+				'user_id' => (int) $user->ID,
+				'username' => $user_login,
+				'reason' => 'non_backend_login',
+			));
+			return;
+		}
+
+		if ($this->is_active()) {
+			$this->log_event('auto_activation_skipped', array(
+				'user_id' => (int) $user->ID,
+				'username' => $user_login,
+				'reason' => 'already_active',
+			));
+			return;
+		}
+
+		$selected_plugins = $this->get_selected_plugins();
+
+		if (empty($selected_plugins)) {
+			$this->log_event('auto_activation_skipped', array(
+				'user_id' => (int) $user->ID,
+				'username' => $user_login,
+				'reason' => 'no_selected_plugins',
+			));
+			return;
+		}
+
+		$allowed_roles = $this->get_allowed_roles();
+		$user_roles = is_array($user->roles) ? $user->roles : array();
+
+		if (empty(array_intersect($allowed_roles, $user_roles))) {
+			$this->log_event('auto_activation_skipped', array(
+				'user_id' => (int) $user->ID,
+				'username' => $user_login,
+				'reason' => 'role_not_allowed',
+				'user_roles' => $user_roles,
+				'allowed_roles' => $allowed_roles,
+			));
+			return;
+		}
+
+		$stored_minutes = (int) ($settings['default_minutes'] ?? 120);
+		$result = $this->activate_work_mode(self::AUTO_LOGIN_MINUTES, (int) $user->ID);
+
+		// Preserve the manual timer preference while the login-triggered session uses 5 minutes.
+		if ((int) $stored_minutes !== self::AUTO_LOGIN_MINUTES) {
+			$this->update_settings(array(
+				'default_minutes' => $stored_minutes,
+				'auto_activate_on_login' => $settings['auto_activate_on_login'],
+				'allowed_roles' => $allowed_roles,
+				'selected_plugins' => $selected_plugins,
+			));
+		}
+
+		if (! empty($result['success'])) {
+			$this->log_event('auto_activated_on_login', array(
+				'user_id' => (int) $user->ID,
+				'username' => $user_login,
+				'minutes' => self::AUTO_LOGIN_MINUTES,
+				'disabled_plugins' => $result['disabled_plugins'] ?? array(),
+			));
+			return;
+		}
+
+		$this->log_event('auto_activation_skipped', array(
+			'user_id' => (int) $user->ID,
+			'username' => $user_login,
+			'reason' => 'activation_failed',
+			'message' => $result['message'] ?? '',
+		));
+	}
+
+	/**
 	 * Schedule one restore event for the current session.
 	 */
 	private function schedule_restore(int $timestamp): void {
@@ -404,6 +556,31 @@ class Automa_Work_Mode {
 		if ($next) {
 			wp_unschedule_event($next, self::RESTORE_HOOK);
 		}
+	}
+
+	/**
+	 * Detect whether the login flow is redirecting to the WordPress backend.
+	 */
+	private function is_backend_login_request(): bool {
+		if (is_admin()) {
+			return true;
+		}
+
+		$redirect_candidates = array(
+			wp_unslash($_REQUEST['redirect_to'] ?? ''),
+			wp_unslash($_REQUEST['requested_redirect_to'] ?? ''),
+		);
+		$admin_base = admin_url();
+
+		foreach ($redirect_candidates as $candidate) {
+			$validated = wp_validate_redirect($candidate, '');
+
+			if ($validated !== '' && strpos($validated, $admin_base) === 0) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -522,6 +699,26 @@ class Automa_Work_Mode {
 		$selected_plugins = array_filter(array_map('trim', $selected_plugins));
 
 		return array_values(array_unique(array_diff($selected_plugins, $this->get_protected_plugins())));
+	}
+
+	/**
+	 * Sanitize allowed role slugs against editable WordPress roles.
+	 */
+	private function sanitize_roles($roles): array {
+		if (! is_array($roles)) {
+			$roles = array();
+		}
+
+		$roles = array_map('sanitize_key', $roles);
+		$roles = array_filter(array_map('trim', $roles));
+		$available_roles = array_keys(wp_roles()->roles);
+		$roles = array_values(array_intersect($roles, $available_roles));
+
+		if (empty($roles)) {
+			return array('administrator', 'editor');
+		}
+
+		return array_values(array_unique($roles));
 	}
 
 	/**
