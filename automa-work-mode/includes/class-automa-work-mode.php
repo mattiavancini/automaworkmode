@@ -32,6 +32,7 @@ class Automa_Work_Mode {
 		add_action('admin_init', array($this, 'maybe_restore_expired_mode'));
 		add_action(self::RESTORE_HOOK, array($this, 'restore_work_mode_from_cron'));
 		add_action('wp_login', array($this, 'maybe_activate_on_login'), 10, 2);
+		add_action('wp_logout', array($this, 'maybe_restore_on_logout'));
 		add_action('admin_menu', array($this->admin, 'register_menu'));
 		add_action('wp_dashboard_setup', array($this->admin, 'register_dashboard_widget'));
 		add_action('admin_post_automa_work_mode_activate', array($this->admin, 'handle_activate_request'));
@@ -320,6 +321,17 @@ class Automa_Work_Mode {
 	 */
 	public function restore_work_mode_from_cron(): void {
 		$this->restore_work_mode('cron');
+	}
+
+	/**
+	 * Restore active Work Mode when the current backend session logs out.
+	 */
+	public function maybe_restore_on_logout(): void {
+		if (! $this->is_active()) {
+			return;
+		}
+
+		$this->restore_work_mode('logout');
 	}
 
 	/**

@@ -8,6 +8,7 @@ Automa Work Mode e un plugin WordPress pensato per alleggerire temporaneamente i
 
 - selezione manuale dei plugin da disattivare
 - auto-attivazione opzionale al login backend
+- restore anche al logout
 - timer in minuti con restore automatico
 - fallback restore su admin load se WP-Cron ritarda
 - notice admin persistente con countdown live
@@ -65,6 +66,8 @@ Quando la sessione termina o viene fermata manualmente:
 - pulisce lo stato runtime
 - esegue un cache flush prudente dove supportato
 
+La stessa logica di restore viene eseguita anche al logout, se la Work Mode e ancora attiva.
+
 Se un plugin non puo essere ripristinato automaticamente, il problema viene registrato nel log e viene richiesto un intervento manuale.
 
 ### Logging
@@ -115,8 +118,9 @@ Dettagli UI attuali:
 3. Avviare manualmente la Work Mode e verificare countdown, notice e lista plugin spenti.
 4. Usare `Riattiva ora` e verificare il restore.
 5. Ripetere lasciando scadere il timer.
-6. Con Work Mode inattiva, fare logout/login nel backend con un ruolo ammesso.
-7. Verificare auto-attivazione, timer `5` minuti e logging.
+6. Con Work Mode attiva, fare logout e verificare il restore.
+7. Con Work Mode inattiva, fare logout/login nel backend con un ruolo ammesso.
+8. Verificare auto-attivazione, timer `5` minuti e logging.
 
 ## Limiti attuali
 
@@ -134,4 +138,5 @@ Dettagli UI attuali:
 - protezione esplicita contro overwrite delle opzioni gia salvate durante riattivazione/aggiornamento
 - auto-attivazione al login limitata ai login backend reali
 - first-use allineato al primo login backend reale, senza richiedere una precedente attivazione manuale
+- restore automatico aggiunto anche al logout
 - logging login mantenuto con eventi di successo e skip reasons (`non_backend_login`, `already_active`, `no_selected_plugins`, `role_not_allowed`, `activation_failed`)

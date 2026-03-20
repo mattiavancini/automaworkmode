@@ -1,0 +1,72 @@
+# WORKLOG
+
+## 2026-03-20
+- Data: 2026-03-20
+- Ambiente test: LocalWP (`C:\Users\matti\Local Sites\awm-test\app\public`)
+- Obiettivo sessione: diagnosticare perche l'installazione da ZIP del plugin WordPress custom `Automa Work Mode` puo fallire e validare il flusso build -> install -> activate -> runtime
+- Stato iniziale plugin: repository presente in `C:\Users\matti\OneDrive\Lavoro\automa\automaworkmode`, cartella plugin `automa-work-mode/` rilevata, header plugin presente in `automa-work-mode.php`, worktree git gia sporco su file non modificati in questa sessione
+- Azioni eseguite: ispezione iniziale repository, verifica struttura file del plugin, lettura header plugin, inizializzazione worklog persistente
+- Risultati: struttura plugin WordPress apparentemente valida con file bootstrap, `uninstall.php`, `includes/` e `assets/`
+- Errori trovati: nessuno in questa fase iniziale
+- Diagnosi: da confermare con test LocalWP e WP-CLI; il packaging e il runtime non sono ancora stati validati
+- Prossimi step: verificare `wp-config.php`, pulire eventuali installazioni residue del plugin, generare ZIP pulito, installare e attivare via WP-CLI, raccogliere log e formulare diagnosi tecnica
+
+## 2026-03-20 - Esito test LocalWP
+- Data: 2026-03-20
+- Ambiente test: LocalWP `awm-test`
+- Cosa e successo realmente:
+  - `wp-config.php` era parzialmente non allineato: `WP_DEBUG` e `WP_DEBUG_LOG` erano gia `true`, ma `WP_DEBUG_DISPLAY` era `true` e l'ho impostato a `false`
+  - in `wp-content/plugins/` non erano presenti residui del plugin; la directory conteneva solo `index.php`
+  - il primo ZIP creato non era valido per WordPress perche conteneva i file alla radice invece della cartella `automa-work-mode/`
+  - ricreato lo ZIP correttamente come `automa-work-mode-test.zip` con root folder `automa-work-mode/`
+  - installazione via WP-CLI completata con successo
+  - attivazione via WP-CLI completata con successo
+  - `wp-content/debug.log` e rimasto vuoto dopo l'attivazione
+  - test runtime manuale su `init`, `login_init` e `admin_init` concluso senza fatal (`runtime-ok`)
+- Azioni eseguite:
+  - verifica struttura plugin e header in `automa-work-mode/automa-work-mode.php`
+  - verifica e correzione delle costanti debug in `C:\Users\matti\Local Sites\awm-test\app\public\wp-config.php`
+  - pulizia preventiva stato plugin in `wp-content/plugins/`
+  - build ZIP e verifica contenuto con `tar -tf automa-work-mode-test.zip`
+  - esecuzione `plugin install` e `plugin activate` via WP-CLI usando la PHP di Local e il `php.ini` del sito
+  - raccolta output in `install.out`, `install.err`, `activate.out`, `activate.err`
+- Risultati:
+  - `install.out`: `Plugin updated successfully. Success: Installed 1 of 1 plugins.`
+  - `activate.out`: `Plugin 'automa-work-mode' activated. Success: Activated 1 of 1 plugins.`
+  - `wp plugin list`: `automa-work-mode` risulta `active`, versione `0.1.2`
+  - il plugin header viene rilevato correttamente
+  - nessun fatal PHP riprodotto su activation o runtime iniziale
+- Errori trovati:
+  - errore ambiente/CLI con `C:\Users\matti\AppData\Local\Programs\Local\resources\extraResources\bin\wp-cli\win32\wp.bat`: `Error: Your PHP installation appears to be missing the MySQL extension which is required by WordPress.`
+  - warning ambiente PHP Local in tutti i run CLI: `PHP Startup: Unable to load dynamic library 'php_imagick.dll'`
+  - errore packaging nel primo tentativo di build locale: ZIP senza root folder `automa-work-mode/`
+- Errore esatto:
+  - WP-CLI di Local, eseguito tramite `wp.bat`, usa una PHP non allineata al sito e fallisce prima del bootstrap WordPress con errore `missing the MySQL extension`
+- File coinvolti:
+  - `automa-work-mode/automa-work-mode.php`
+  - `automa-work-mode/includes/class-automa-work-mode.php`
+  - `automa-work-mode/includes/class-automa-work-mode-admin.php`
+  - `C:\Users\matti\Local Sites\awm-test\app\public\wp-config.php`
+  - `install.out`
+  - `install.err`
+  - `activate.out`
+  - `activate.err`
+- Diagnosi:
+  - packaging ZIP: il plugin puo fallire se lo ZIP viene costruito senza cartella radice `automa-work-mode/`; con ZIP corretto l'installazione funziona
+  - activation runtime error: non riprodotto
+  - plugin sporco: non riprodotto; lo stato iniziale dei plugin era pulito
+  - problema ambiente LocalWP: si, presente sul percorso CLI standard `wp.bat`, che su questa macchina usa una PHP non compatibile con il bootstrap WordPress del sito
+  - header plugin non rilevato: no, il plugin viene rilevato e installato correttamente
+  - fatal su hook `init/login/admin`: non riprodotto nei test eseguiti
+- Proposta fix:
+  - standardizzare la build ZIP affinche includa sempre la root folder `automa-work-mode/`
+  - per i test CLI in LocalWP usare la PHP del sito con relativo `php.ini`, non il `wp.bat` che cade sull'errore `mysqli`
+  - opzionale: sistemare l'estensione `php_imagick.dll` nell'ambiente Local per eliminare i warning CLI
+- Livello gravita:
+  - ZIP packaging errato: media
+  - configurazione LocalWP/WP-CLI non allineata: alta per la testabilita locale
+  - plugin runtime/activation: bassa, nessun errore riprodotto
+- Next step consigliato:
+  - automatizzare la generazione dello ZIP WordPress-safe
+  - documentare il comando CLI corretto per LocalWP su questa macchina
+  - se serve, fare un secondo passaggio di diagnosi focalizzato solo sui warning ambiente `imagick` e sul wrapper `wp.bat` di Local
