@@ -40,6 +40,8 @@ class Automa_Work_Mode_Admin {
 			return;
 		}
 
+		add_filter('postbox_classes_dashboard_automa_work_mode_dashboard_widget', array($this, 'filter_dashboard_widget_classes'));
+
 		wp_add_dashboard_widget(
 			'automa_work_mode_dashboard_widget',
 			__('Automa Work Mode', 'automa-work-mode'),
@@ -120,7 +122,6 @@ class Automa_Work_Mode_Admin {
 		}
 
 		$state = $this->plugin->get_state();
-		$remaining = max(0, (int) $state['end_timestamp'] - time());
 		?>
 		<div class="notice automa-work-mode-notice">
 			<p>
@@ -128,7 +129,7 @@ class Automa_Work_Mode_Admin {
 			</p>
 			<p>
 				<?php esc_html_e('Tempo restante alla riattivazione dei plugin:', 'automa-work-mode'); ?>
-				<span class="automa-work-mode-countdown automa-work-mode-notice__countdown" data-automa-end-timestamp="<?php echo esc_attr((int) $state['end_timestamp']); ?>"><?php echo esc_html($this->plugin->get_remaining_time_label()); ?></span>
+				<?php $this->render_countdown($state, 'automa-work-mode-notice__countdown'); ?>
 			</p>
 			<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="automa-work-mode-inline-form">
 				<input type="hidden" name="action" value="automa_work_mode_restore" />
@@ -145,19 +146,25 @@ class Automa_Work_Mode_Admin {
 	public function render_dashboard_widget(): void {
 		$settings = $this->plugin->get_settings();
 		$state = $this->plugin->get_state();
+		$is_active = ! empty($state['active']);
 
+		echo '<div class="automa-work-mode-dashboard-widget' . ($is_active ? ' is-active' : '') . '">';
 		echo '<p><strong>' . esc_html__('Stato Work Mode:', 'automa-work-mode') . '</strong> ';
-		echo ! empty($state['active']) ? esc_html__('ACTIVE', 'automa-work-mode') : esc_html__('INACTIVE', 'automa-work-mode');
+		echo $is_active ? esc_html__('ACTIVE', 'automa-work-mode') : esc_html__('INACTIVE', 'automa-work-mode');
 		echo '</p>';
 
-		if (! empty($state['active'])) {
+		if ($is_active) {
 			echo '<p>' . esc_html(sprintf(__('Fine prevista: %s', 'automa-work-mode'), $this->plugin->get_end_time_label())) . '</p>';
-			echo '<p>' . esc_html__('Tempo residuo:', 'automa-work-mode') . ' <span class="automa-work-mode-countdown" data-automa-end-timestamp="' . esc_attr((int) $state['end_timestamp']) . '">' . esc_html($this->plugin->get_remaining_time_label()) . '</span></p>';
+			echo '<p>' . esc_html__('Tempo residuo:', 'automa-work-mode') . ' ';
+			$this->render_countdown($state);
+			echo '</p>';
 			$this->render_restore_form(__('Riattiva ora', 'automa-work-mode'));
+			echo '</div>';
 			return;
 		}
 
 		$this->render_activate_form($settings, $this->plugin->get_selected_plugins(), __('Avvia modalita operativa', 'automa-work-mode'), false, array(), false, $this->plugin->get_available_roles());
+		echo '</div>';
 	}
 
 	/**
@@ -185,7 +192,7 @@ class Automa_Work_Mode_Admin {
 					<p><strong><?php esc_html_e('Stato Work Mode:', 'automa-work-mode'); ?></strong> <?php echo ! empty($state['active']) ? esc_html__('ACTIVE', 'automa-work-mode') : esc_html__('INACTIVE', 'automa-work-mode'); ?></p>
 					<?php if (! empty($state['active'])) : ?>
 						<p><strong><?php esc_html_e('Ora di fine prevista:', 'automa-work-mode'); ?></strong> <?php echo esc_html($this->plugin->get_end_time_label()); ?></p>
-						<p><strong><?php esc_html_e('Tempo residuo:', 'automa-work-mode'); ?></strong> <span class="automa-work-mode-countdown" data-automa-end-timestamp="<?php echo esc_attr((int) $state['end_timestamp']); ?>"><?php echo esc_html($this->plugin->get_remaining_time_label()); ?></span></p>
+						<p><strong><?php esc_html_e('Tempo residuo:', 'automa-work-mode'); ?></strong> <?php $this->render_countdown($state); ?></p>
 						<div class="automa-work-mode__disabled-list-wrap">
 							<strong><?php esc_html_e('Plugin spenti dalla Work Mode:', 'automa-work-mode'); ?></strong>
 							<?php $this->render_plugin_file_list($state['disabled_plugins'] ?? array(), $plugin_map); ?>
@@ -202,7 +209,7 @@ class Automa_Work_Mode_Admin {
 						<ul class="automa-work-mode__summary">
 							<li><strong><?php esc_html_e('Start:', 'automa-work-mode'); ?></strong> <?php echo esc_html(wp_date(get_option('date_format') . ' ' . get_option('time_format'), (int) $state['start_timestamp'])); ?></li>
 							<li><strong><?php esc_html_e('End:', 'automa-work-mode'); ?></strong> <?php echo esc_html(wp_date(get_option('date_format') . ' ' . get_option('time_format'), (int) $state['end_timestamp'])); ?></li>
-							<li><strong><?php esc_html_e('Tempo residuo:', 'automa-work-mode'); ?></strong> <span class="automa-work-mode-countdown" data-automa-end-timestamp="<?php echo esc_attr((int) $state['end_timestamp']); ?>"><?php echo esc_html($this->plugin->get_remaining_time_label()); ?></span></li>
+							<li><strong><?php esc_html_e('Tempo residuo:', 'automa-work-mode'); ?></strong> <?php $this->render_countdown($state); ?></li>
 							<li><strong><?php esc_html_e('Plugin installati:', 'automa-work-mode'); ?></strong> <?php echo esc_html((string) count($state['installed_plugins'])); ?></li>
 							<li><strong><?php esc_html_e('Plugin attivi all\'avvio:', 'automa-work-mode'); ?></strong> <?php echo esc_html((string) count($state['active_plugins'])); ?></li>
 							<li><strong><?php esc_html_e('Plugin inattivi all\'avvio:', 'automa-work-mode'); ?></strong> <?php echo esc_html((string) count($state['inactive_plugins'])); ?></li>
@@ -256,6 +263,20 @@ class Automa_Work_Mode_Admin {
 	}
 
 	/**
+	 * Mark the dashboard postbox when Work Mode is active.
+	 *
+	 * @param array<int,string> $classes
+	 * @return array<int,string>
+	 */
+	public function filter_dashboard_widget_classes(array $classes): array {
+		if ($this->plugin->is_active()) {
+			$classes[] = 'automa-work-mode-dashboard-widget-active';
+		}
+
+		return $classes;
+	}
+
+	/**
 	 * Build an inventory map indexed by plugin file.
 	 */
 	private function get_plugin_map(array $inventory): array {
@@ -289,6 +310,24 @@ class Automa_Work_Mode_Admin {
 		}
 
 		echo '</ul>';
+	}
+
+	/**
+	 * Render the shared countdown markup with server-side fallback text.
+	 */
+	private function render_countdown(array $state, string $extra_class = ''): void {
+		if (empty($state['end_timestamp'])) {
+			return;
+		}
+
+		$classes = trim('automa-work-mode-countdown ' . $extra_class);
+
+		printf(
+			'<span class="%1$s" data-automa-end-timestamp="%2$d">%3$s</span>',
+			esc_attr($classes),
+			(int) $state['end_timestamp'],
+			esc_html($this->plugin->get_remaining_time_label())
+		);
 	}
 
 	/**

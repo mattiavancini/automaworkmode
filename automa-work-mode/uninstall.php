@@ -18,3 +18,4 @@ foreach (array('administrator', 'editor') as $role_name) {
 delete_option('automa_work_mode_settings');
 delete_option('automa_work_mode_state');
 delete_option('automa_work_mode_log');
+delete_option('automa_work_mode_meta');

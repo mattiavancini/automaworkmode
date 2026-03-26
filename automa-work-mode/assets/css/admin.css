@@ -16,6 +16,14 @@
 	margin-top: 0;
 }
 
+.automa-work-mode-dashboard-widget {
+	margin: -12px;
+	padding: 12px;
+	border-radius: 0 0 6px 6px;
+	background: #ed128c;
+	color: #fff;
+}
+
 .automa-work-mode__form {
 	margin-top: 12px;
 }
@@ -104,4 +112,52 @@
 	font-weight: 700;
 	font-size: 16px;
 	color: #ed128c;
+}
+
+.postbox #automa_work_mode_dashboard_widget .inside,
+.postbox.automa-work-mode-dashboard-widget-active {
+	background: #ed128c;
+	border-color: #ed128c;
+}
+
+#automa_work_mode_dashboard_widget.postbox {
+	border-color: #ed128c;
+}
+
+#automa_work_mode_dashboard_widget.postbox .postbox-header,
+.postbox.automa-work-mode-dashboard-widget-active .postbox-header {
+	background: #ed128c;
+	border-bottom-color: rgba(255, 255, 255, 0.25);
+}
+
+#automa_work_mode_dashboard_widget .hndle,
+#automa_work_mode_dashboard_widget .handle-order-higher,
+#automa_work_mode_dashboard_widget .handle-order-lower,
+#automa_work_mode_dashboard_widget .handlediv,
+#automa_work_mode_dashboard_widget .automa-work-mode-dashboard-widget,
+#automa_work_mode_dashboard_widget .automa-work-mode-dashboard-widget p,
+#automa_work_mode_dashboard_widget .automa-work-mode-dashboard-widget strong,
+#automa_work_mode_dashboard_widget .automa-work-mode-dashboard-widget span,
+.postbox.automa-work-mode-dashboard-widget-active .hndle,
+.postbox.automa-work-mode-dashboard-widget-active .handle-order-higher,
+.postbox.automa-work-mode-dashboard-widget-active .handle-order-lower,
+.postbox.automa-work-mode-dashboard-widget-active .handlediv,
+.postbox.automa-work-mode-dashboard-widget-active .automa-work-mode-dashboard-widget,
+.postbox.automa-work-mode-dashboard-widget-active .automa-work-mode-dashboard-widget p,
+.postbox.automa-work-mode-dashboard-widget-active .automa-work-mode-dashboard-widget strong,
+.postbox.automa-work-mode-dashboard-widget-active .automa-work-mode-dashboard-widget span {
+	color: #fff;
+}
+
+#automa_work_mode_dashboard_widget .automa-work-mode-countdown,
+.postbox.automa-work-mode-dashboard-widget-active .automa-work-mode-countdown {
+	color: #fff;
+	font-weight: 700;
+}
+
+#automa_work_mode_dashboard_widget .button-secondary,
+.postbox.automa-work-mode-dashboard-widget-active .button-secondary {
+	background: #fff;
+	border-color: #fff;
+	color: #9c0f5f;
 }

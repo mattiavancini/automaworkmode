@@ -11,10 +11,12 @@ class Automa_Work_Mode {
 	const SETTINGS_OPTION = 'automa_work_mode_settings';
 	const STATE_OPTION = 'automa_work_mode_state';
 	const LOG_OPTION = 'automa_work_mode_log';
+	const META_OPTION = 'automa_work_mode_meta';
 	const RESTORE_HOOK = 'automa_work_mode_restore_event';
 	const CAPABILITY = 'automa_work_mode';
 	const MAX_LOG_ENTRIES = 100;
-	const AUTO_LOGIN_MINUTES = 5;
+	const DEFAULT_MINUTES = 120;
+	const AUTO_LOGIN_MINUTES = 10;
 
 	/**
 	 * Admin handler.
@@ -28,6 +30,7 @@ class Automa_Work_Mode {
 	 */
 	public function boot(): void {
 		$this->admin = new Automa_Work_Mode_Admin($this);
+		$this->maybe_upgrade_settings();
 
 		add_action('admin_init', array($this, 'maybe_restore_expired_mode'));
 		add_action(self::RESTORE_HOOK, array($this, 'restore_work_mode_from_cron'));
@@ -55,8 +58,13 @@ class Automa_Work_Mode {
 			add_option(self::LOG_OPTION, array());
 		}
 
+		if (get_option(self::META_OPTION, null) === null) {
+			add_option(self::META_OPTION, array());
+		}
+
 		$self->grant_capabilities();
 		$self->remove_legacy_capabilities();
+		$self->maybe_upgrade_settings();
 	}
 
 	/**
@@ -84,11 +92,12 @@ class Automa_Work_Mode {
 	 */
 	public function get_default_settings(): array {
 		return array(
-			'default_minutes' => self::AUTO_LOGIN_MINUTES,
+			'default_minutes' => self::DEFAULT_MINUTES,
 			'auto_activate_on_login' => true,
 			'allowed_roles' => array('administrator'),
 			'selected_plugins' => array(
 				'broken-link-checker/broken-link-checker.php',
+				'internal-links/internal-links.php',
 				'wp-compress-image-optimizer/wp-compress.php',
 				'wp-compress/wp-compress.php',
 			),
@@ -171,7 +180,7 @@ class Automa_Work_Mode {
 	 *
 	 * @return array{success:bool,message:string,disabled_plugins:array}
 	 */
-	public function activate_work_mode(int $minutes, int $user_id = 0): array {
+	public function activate_work_mode(int $minutes, int $user_id = 0, ?array $selected_plugins_override = null): array {
 		$this->ensure_plugin_functions_loaded();
 
 		if ($this->is_active()) {
@@ -183,18 +192,10 @@ class Automa_Work_Mode {
 		}
 
 		$minutes = $this->sanitize_minutes($minutes);
-		$current_settings = $this->get_settings();
-		$this->update_settings(array(
-			'default_minutes' => $minutes,
-			'auto_activate_on_login' => $current_settings['auto_activate_on_login'] ?? false,
-			'allowed_roles' => $current_settings['allowed_roles'] ?? array('administrator'),
-			'selected_plugins' => $current_settings['selected_plugins'] ?? array(),
-		));
-
 		$inventory = $this->get_plugin_inventory();
 		$active_plugins = get_option('active_plugins', array());
 		$inactive_plugins = array_values(array_diff(array_keys(get_plugins()), $active_plugins));
-		$selected_plugins = $this->get_selected_plugins();
+		$selected_plugins = is_array($selected_plugins_override) ? $this->sanitize_selected_plugins($selected_plugins_override) : $this->get_selected_plugins();
 		$disabled_plugins = array_values(array_intersect($selected_plugins, $active_plugins));
 		$start_timestamp = time();
 		$end_timestamp = $start_timestamp + ($minutes * MINUTE_IN_SECONDS);
@@ -485,7 +486,7 @@ class Automa_Work_Mode {
 			return;
 		}
 
-		$selected_plugins = $this->get_selected_plugins();
+		$selected_plugins = $this->get_auto_login_selected_plugins();
 
 		if (empty($selected_plugins)) {
 			$this->log_event('auto_activation_skipped', array(
@@ -510,18 +511,7 @@ class Automa_Work_Mode {
 			return;
 		}
 
-		$stored_minutes = (int) ($settings['default_minutes'] ?? 120);
-		$result = $this->activate_work_mode(self::AUTO_LOGIN_MINUTES, (int) $user->ID);
-
-		// Preserve the manual timer preference while the login-triggered session uses 5 minutes.
-		if ((int) $stored_minutes !== self::AUTO_LOGIN_MINUTES) {
-			$this->update_settings(array(
-				'default_minutes' => $stored_minutes,
-				'auto_activate_on_login' => $settings['auto_activate_on_login'],
-				'allowed_roles' => $allowed_roles,
-				'selected_plugins' => $selected_plugins,
-			));
-		}
+		$result = $this->activate_work_mode(self::AUTO_LOGIN_MINUTES, (int) $user->ID, $selected_plugins);
 
 		if (! empty($result['success'])) {
 			$this->log_event('auto_activated_on_login', array(
@@ -616,7 +606,7 @@ class Automa_Work_Mode {
 			return 'protected';
 		}
 
-		foreach (array('redis', 'object cache', 'elementor', 'classic editor', 'classic widgets', 'smtp', 'wordfence', 'sucuri', 'security', 'login', 'template', 'permalink') as $keyword) {
+		foreach (array('redis', 'elementor', 'classic editor', 'classic widgets', 'smtp', 'wordfence', 'sucuri', 'security', 'login', 'template', 'permalink') as $keyword) {
 			if (strpos($haystack, $keyword) !== false) {
 				return 'protected';
 			}
@@ -692,7 +682,7 @@ class Automa_Work_Mode {
 		$minutes = absint($minutes);
 
 		if ($minutes < 1) {
-			return 120;
+			return self::DEFAULT_MINUTES;
 		}
 
 		if ($minutes > 720) {
@@ -714,6 +704,81 @@ class Automa_Work_Mode {
 		$selected_plugins = array_filter(array_map('trim', $selected_plugins));
 
 		return array_values(array_unique(array_diff($selected_plugins, $this->get_protected_plugins())));
+	}
+
+	/**
+	 * Return plugin selections that should exist in the default base list.
+	 *
+	 * @return array<int,string>
+	 */
+	private function get_base_selected_plugins(): array {
+		return array(
+			'broken-link-checker/broken-link-checker.php',
+			'internal-links/internal-links.php',
+			'wp-compress-image-optimizer/wp-compress.php',
+			'wp-compress/wp-compress.php',
+		);
+	}
+
+	/**
+	 * Merge manual selections with login-specific defaults.
+	 */
+	private function get_auto_login_selected_plugins(): array {
+		$selected_plugins = $this->get_selected_plugins();
+
+		foreach ($this->get_auto_login_default_plugins() as $plugin_file) {
+			$selected_plugins[] = $plugin_file;
+		}
+
+		return $this->sanitize_selected_plugins($selected_plugins);
+	}
+
+	/**
+	 * Resolve plugins that should be disabled by default during auto-login activation.
+	 *
+	 * Only the base "internal-links" plugin is included here, never Pro variants.
+	 *
+	 * @return array<int,string>
+	 */
+	private function get_auto_login_default_plugins(): array {
+		$this->ensure_plugin_functions_loaded();
+		$defaults = array();
+
+		foreach (array_keys(get_plugins()) as $plugin_file) {
+			if (strtolower($plugin_file) === 'internal-links/internal-links.php') {
+				$defaults[] = $plugin_file;
+			}
+		}
+
+		return $defaults;
+	}
+
+	/**
+	 * Upgrade persisted settings once when base defaults change.
+	 */
+	private function maybe_upgrade_settings(): void {
+		$meta = get_option(self::META_OPTION, array());
+		$meta = is_array($meta) ? $meta : array();
+		$stored_settings = get_option(self::SETTINGS_OPTION, null);
+
+		if (! is_array($stored_settings)) {
+			$meta['base_defaults_version'] = AUTOMA_WORK_MODE_VERSION;
+			update_option(self::META_OPTION, $meta, false);
+			return;
+		}
+
+		if (($meta['base_defaults_version'] ?? '') === AUTOMA_WORK_MODE_VERSION) {
+			return;
+		}
+
+		$selected_plugins = $this->sanitize_selected_plugins($stored_settings['selected_plugins'] ?? array());
+		$selected_plugins = array_values(array_unique(array_merge($selected_plugins, $this->get_base_selected_plugins())));
+
+		$stored_settings['selected_plugins'] = $this->sanitize_selected_plugins($selected_plugins);
+		update_option(self::SETTINGS_OPTION, $stored_settings, false);
+
+		$meta['base_defaults_version'] = AUTOMA_WORK_MODE_VERSION;
+		update_option(self::META_OPTION, $meta, false);
 	}
 
 	/**
