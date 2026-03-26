@@ -1,6 +1,6 @@
 # Automa Work Mode
 
-Versione documentata: `0.1.3`
+Versione documentata: `0.1.4`
 
 Automa Work Mode e un plugin WordPress pensato per alleggerire temporaneamente il backend durante attivita operative come copywriting, revisione contenuti e gestione editoriale. Permette di spegnere per un tempo limitato solo i plugin selezionati manualmente e di ripristinarli automaticamente o manualmente al termine della sessione.
 
@@ -136,14 +136,18 @@ Dettagli UI attuali:
 
 ## Changelog
 
-### 0.1.3
+### 0.1.4
 
-- `Internal Link Juicer` base (`internal-links/internal-links.php`) aggiunto alla lista base anche su installazioni gia aggiornate, senza includere versioni Pro
+- `Internal Link Juicer` base corretto su path reale (`internal-links/wp-internal-linkjuicer.php`) con migrazione automatica del vecchio riferimento errato (`internal-links/internal-links.php`)
+- riconoscimento del plugin `internal-links` reso dinamico sul file reale installato, cosi lo spegnimento automatico al login funziona anche se lo slug storico era sbagliato
+- `Internal Link Juicer` base aggiunto alla lista base anche su installazioni gia aggiornate, senza includere versioni Pro
 - timer dedicato per auto-attivazione al login portato a `10` minuti senza sovrascrivere il timer manuale salvato
 - plugin base `internal-links` aggiunto ai default del login automatico e ai default iniziali di selezione
 - `object-cache-pro` rimosso dalle logiche di protezione implicita, quindi di nuovo selezionabile e ripristinabile
 - countdown reso sempre visibile in notice, pagina opzioni e widget dashboard con fallback lato server
 - widget dashboard attivo evidenziato con background `#ED128C`
+
+### 0.1.3
 
 ### 0.1.2
 

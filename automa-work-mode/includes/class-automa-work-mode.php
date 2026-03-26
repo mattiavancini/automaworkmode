@@ -17,6 +17,8 @@ class Automa_Work_Mode {
 	const MAX_LOG_ENTRIES = 100;
 	const DEFAULT_MINUTES = 120;
 	const AUTO_LOGIN_MINUTES = 10;
+	const INTERNAL_LINKS_PLUGIN = 'internal-links/wp-internal-linkjuicer.php';
+	const INTERNAL_LINKS_LEGACY_PLUGIN = 'internal-links/internal-links.php';
 
 	/**
 	 * Admin handler.
@@ -95,12 +97,7 @@ class Automa_Work_Mode {
 			'default_minutes' => self::DEFAULT_MINUTES,
 			'auto_activate_on_login' => true,
 			'allowed_roles' => array('administrator'),
-			'selected_plugins' => array(
-				'broken-link-checker/broken-link-checker.php',
-				'internal-links/internal-links.php',
-				'wp-compress-image-optimizer/wp-compress.php',
-				'wp-compress/wp-compress.php',
-			),
+			'selected_plugins' => $this->get_base_selected_plugins(),
 		);
 	}
 
@@ -702,6 +699,7 @@ class Automa_Work_Mode {
 
 		$selected_plugins = array_map('sanitize_text_field', $selected_plugins);
 		$selected_plugins = array_filter(array_map('trim', $selected_plugins));
+		$selected_plugins = $this->normalize_selected_plugins($selected_plugins);
 
 		return array_values(array_unique(array_diff($selected_plugins, $this->get_protected_plugins())));
 	}
@@ -712,12 +710,17 @@ class Automa_Work_Mode {
 	 * @return array<int,string>
 	 */
 	private function get_base_selected_plugins(): array {
-		return array(
+		$selected_plugins = array(
 			'broken-link-checker/broken-link-checker.php',
-			'internal-links/internal-links.php',
 			'wp-compress-image-optimizer/wp-compress.php',
 			'wp-compress/wp-compress.php',
 		);
+
+		foreach ($this->get_internal_links_plugin_files() as $plugin_file) {
+			$selected_plugins[] = $plugin_file;
+		}
+
+		return array_values(array_unique($selected_plugins));
 	}
 
 	/**
@@ -741,16 +744,7 @@ class Automa_Work_Mode {
 	 * @return array<int,string>
 	 */
 	private function get_auto_login_default_plugins(): array {
-		$this->ensure_plugin_functions_loaded();
-		$defaults = array();
-
-		foreach (array_keys(get_plugins()) as $plugin_file) {
-			if (strtolower($plugin_file) === 'internal-links/internal-links.php') {
-				$defaults[] = $plugin_file;
-			}
-		}
-
-		return $defaults;
+		return $this->get_internal_links_plugin_files();
 	}
 
 	/**
@@ -779,6 +773,58 @@ class Automa_Work_Mode {
 
 		$meta['base_defaults_version'] = AUTOMA_WORK_MODE_VERSION;
 		update_option(self::META_OPTION, $meta, false);
+	}
+
+	/**
+	 * Normalize plugin paths that may vary between releases or installations.
+	 *
+	 * @param array<int,string> $selected_plugins
+	 * @return array<int,string>
+	 */
+	private function normalize_selected_plugins(array $selected_plugins): array {
+		$normalized = array();
+		$replace_internal_links = false;
+
+		foreach ($selected_plugins as $plugin_file) {
+			$plugin_file = strtolower($plugin_file);
+
+			if ($plugin_file === self::INTERNAL_LINKS_LEGACY_PLUGIN || $plugin_file === self::INTERNAL_LINKS_PLUGIN) {
+				$replace_internal_links = true;
+				continue;
+			}
+
+			$normalized[] = $plugin_file;
+		}
+
+		if ($replace_internal_links) {
+			foreach ($this->get_internal_links_plugin_files() as $plugin_file) {
+				$normalized[] = $plugin_file;
+			}
+		}
+
+		return $normalized;
+	}
+
+	/**
+	 * Resolve the installed base Internal Link Juicer plugin file.
+	 *
+	 * @return array<int,string>
+	 */
+	private function get_internal_links_plugin_files(): array {
+		$this->ensure_plugin_functions_loaded();
+		$matches = array();
+
+		foreach (array_keys(get_plugins()) as $plugin_file) {
+			if (strtolower(dirname($plugin_file)) === 'internal-links') {
+				$matches[] = $plugin_file;
+			}
+		}
+
+		if (! empty($matches)) {
+			return array_values(array_unique($matches));
+		}
+
+		return array(self::INTERNAL_LINKS_PLUGIN);
 	}
 
 	/**

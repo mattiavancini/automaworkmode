@@ -163,7 +163,7 @@ class Automa_Work_Mode_Admin {
 			return;
 		}
 
-		$this->render_activate_form($settings, $this->plugin->get_selected_plugins(), __('Avvia modalita operativa', 'automa-work-mode'), false, array(), false, $this->plugin->get_available_roles());
+		$this->render_activate_form($settings, $this->plugin->get_selected_plugins(), __('Avvia modalita operativa', 'automa-work-mode'), false, array(), false, $this->plugin->get_available_roles(), false);
 		echo '</div>';
 	}
 
@@ -199,7 +199,7 @@ class Automa_Work_Mode_Admin {
 						</div>
 						<?php $this->render_restore_form(__('Riattiva ora', 'automa-work-mode')); ?>
 					<?php else : ?>
-						<?php $this->render_activate_form($settings, $selected_plugins, __('Avvia modalita operativa', 'automa-work-mode'), true, $inventory, true, $available_roles); ?>
+						<?php $this->render_activate_form($settings, $selected_plugins, __('Avvia modalita operativa', 'automa-work-mode'), true, $inventory, true, $available_roles, true); ?>
 					<?php endif; ?>
 				</div>
 
@@ -354,8 +354,9 @@ class Automa_Work_Mode_Admin {
 	 * @param array<int|string,mixed>              $settings
 	 * @param array<int,string>                    $selected_plugins
 	 * @param array<int,array<string,string>>      $available_roles
+	 * @param bool                                 $show_settings_flags
 	 */
-	private function render_activate_form(array $settings, array $selected_plugins, string $button_label, bool $with_plugin_hint = false, array $inventory = array(), bool $allow_save = false, array $available_roles = array()): void {
+	private function render_activate_form(array $settings, array $selected_plugins, string $button_label, bool $with_plugin_hint = false, array $inventory = array(), bool $allow_save = false, array $available_roles = array(), bool $show_settings_flags = true): void {
 		$default_minutes = (int) ($settings['default_minutes'] ?? 120);
 		$auto_activate_on_login = ! empty($settings['auto_activate_on_login']);
 		$allowed_roles = $settings['allowed_roles'] ?? array('administrator');
@@ -367,26 +368,33 @@ class Automa_Work_Mode_Admin {
 				<label for="automa-minutes"><strong><?php esc_html_e('Minuti prima della riattivazione automatica', 'automa-work-mode'); ?></strong></label><br />
 				<input id="automa-minutes" type="number" min="1" max="720" step="1" name="minutes" value="<?php echo esc_attr($default_minutes); ?>" class="small-text" />
 			</p>
-			<p>
-				<label>
-					<input type="checkbox" name="auto_activate_on_login" value="1" <?php checked($auto_activate_on_login); ?> />
-					<?php esc_html_e('Attiva automaticamente la Modalita Operativa al login', 'automa-work-mode'); ?>
-				</label>
-			</p>
-			<fieldset>
-				<legend><strong><?php esc_html_e('Ruoli ammessi per l\'attivazione automatica', 'automa-work-mode'); ?></strong></legend>
-				<?php foreach ($available_roles as $role) : ?>
-					<label style="display:block; margin-bottom:4px;">
-						<input
-							type="checkbox"
-							name="allowed_roles[]"
-							value="<?php echo esc_attr($role['key']); ?>"
-							<?php checked(in_array($role['key'], $allowed_roles, true)); ?>
-						/>
-						<?php echo esc_html($role['label']); ?>
+			<?php if ($show_settings_flags) : ?>
+				<p>
+					<label>
+						<input type="checkbox" name="auto_activate_on_login" value="1" <?php checked($auto_activate_on_login); ?> />
+						<?php esc_html_e('Attiva automaticamente la Modalita Operativa al login', 'automa-work-mode'); ?>
 					</label>
+				</p>
+				<fieldset>
+					<legend><strong><?php esc_html_e('Ruoli ammessi per l\'attivazione automatica', 'automa-work-mode'); ?></strong></legend>
+					<?php foreach ($available_roles as $role) : ?>
+						<label style="display:block; margin-bottom:4px;">
+							<input
+								type="checkbox"
+								name="allowed_roles[]"
+								value="<?php echo esc_attr($role['key']); ?>"
+								<?php checked(in_array($role['key'], $allowed_roles, true)); ?>
+							/>
+							<?php echo esc_html($role['label']); ?>
+						</label>
+					<?php endforeach; ?>
+				</fieldset>
+			<?php else : ?>
+				<input type="hidden" name="auto_activate_on_login" value="<?php echo $auto_activate_on_login ? '1' : '0'; ?>" />
+				<?php foreach ($allowed_roles as $role_key) : ?>
+					<input type="hidden" name="allowed_roles[]" value="<?php echo esc_attr((string) $role_key); ?>" />
 				<?php endforeach; ?>
-			</fieldset>
+			<?php endif; ?>
 			<?php if ($with_plugin_hint) : ?>
 				<p class="description"><?php esc_html_e('Seleziona manualmente dalla tabella i plugin da disattivare. I plugin protected non sono selezionabili.', 'automa-work-mode'); ?></p>
 			<?php endif; ?>
