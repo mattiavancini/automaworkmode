@@ -1,5 +1,22 @@
 # WORKLOG
 
+## 2026-03-26 - Revisione documentazione e pulizia repository
+- Data: 2026-03-26
+- Obiettivo sessione: allineare la documentazione alla `0.1.4` e verificare l'utilita reale dei file presenti in root
+- Verifiche eseguite:
+  - header plugin confermato in `automa-work-mode/automa-work-mode.php` con versione `0.1.4`
+  - `README.md` gia in gran parte allineato alla `0.1.4`, ma con un titolo sezione ancora fermo a `0.1.3`
+  - `WORKLOG.md` conteneva uno storico utile, ma con un riferimento puntuale alla versione `0.1.2` derivato dal test del 2026-03-20
+  - `MILESTONES.md`, `ROADMAP.md` e `TODO.md` contenevano backlog e pianificazione, non documentazione di prodotto o di release
+  - `activate.out`, `activate.err`, `install.out`, `install.err`, `automa-work-mode-0.1.4-online-test.zip` e `wp-cli-local.phar` risultavano artifact locali o strumenti di test, non sorgenti da versionare
+- Decisioni prese:
+  - mantenere nel repository solo codice plugin, `README.md`, `WORKLOG.md` e `.gitignore`
+  - rimuovere la documentazione di planning (`MILESTONES`, `ROADMAP`, `TODO`)
+  - rimuovere dalla versione i file temporanei e aggiungerli a `.gitignore`
+- Esito:
+  - documentazione operativa allineata alla `0.1.4`
+  - repository ripulito dai file senza utilita stabile come sorgente o documentazione attiva
+
 ## 2026-03-20
 - Data: 2026-03-20
 - Ambiente test: LocalWP (`C:\Users\matti\Local Sites\awm-test\app\public`)
@@ -33,7 +50,7 @@
 - Risultati:
   - `install.out`: `Plugin updated successfully. Success: Installed 1 of 1 plugins.`
   - `activate.out`: `Plugin 'automa-work-mode' activated. Success: Activated 1 of 1 plugins.`
-  - `wp plugin list`: `automa-work-mode` risulta `active`, versione `0.1.2`
+  - `wp plugin list`: `automa-work-mode` risulta `active`; al momento di quel test l'installazione locale esponeva versione `0.1.2`
   - il plugin header viene rilevato correttamente
   - nessun fatal PHP riprodotto su activation o runtime iniziale
 - Errori trovati:

@@ -16,7 +16,7 @@ Automa Work Mode e un plugin WordPress pensato per alleggerire temporaneamente i
 - plugin `protected` visibili ma non selezionabili
 - link rapido `Impostazioni` nella schermata Plugin
 
-## Comportamento 0.1.3
+## Comportamento 0.1.4
 
 ### Default prima installazione
 
@@ -149,6 +149,11 @@ Dettagli UI attuali:
 
 ### 0.1.3
 
+- countdown live nel notice admin
+- fallback server-side del tempo residuo al page load
+- action link `Impostazioni` nella schermata Plugin
+- descrizione plugin in italiano
+
 ### 0.1.2
 
 - plugin limitato ai soli amministratori per uso manuale e auto-attivazione login
@@ -158,3 +163,26 @@ Dettagli UI attuali:
 - first-use allineato al primo login backend reale, senza richiedere una precedente attivazione manuale
 - restore automatico aggiunto anche al logout
 - logging login mantenuto con eventi di successo e skip reasons (`non_backend_login`, `already_active`, `no_selected_plugins`, `role_not_allowed`, `activation_failed`)
+
+## File del repository
+
+File da mantenere nel repository:
+
+- `automa-work-mode/`: codice sorgente del plugin
+- `README.md`: documentazione operativa e changelog sintetico della release corrente
+- `WORKLOG.md`: storico diagnostico e note di validazione locale ancora utili come riferimento
+- `.gitignore`: esclusione di artifact locali e output temporanei
+
+File da non versionare:
+
+- `*.zip`: artifact build generati dalla release
+- `*.out` e `*.err`: output temporanei di test CLI
+- `wp-cli-local.phar`: tool locale copiato per test sull'ambiente specifico di questa macchina
+
+Documentazione rimossa:
+
+- `MILESTONES.md`
+- `ROADMAP.md`
+- `TODO.md`
+
+Questi file non aggiungevano documentazione di rilascio o uso reale della `0.1.4` e duplicavano backlog tecnico gia implicito nel codice e nel worklog.

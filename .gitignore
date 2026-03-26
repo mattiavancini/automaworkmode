@@ -1,2 +1,6 @@
 .DS_Store
 *.log
+*.err
+*.out
+*.zip
+wp-cli-local.phar
